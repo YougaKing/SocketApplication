@@ -5,10 +5,11 @@ package netty.echo;
  */
 
 public class EchoFile extends EchoCommon {
+    private static final long serialVersionUID = -7073394178771948754L;
     public String fileName;
     public long fileSize;
 
-    public static EchoFile buildFile(long sumCountPackage ,@Target String target) {
+    public static EchoFile buildFile(long sumCountPackage, Target target) {
         EchoFile echo = new EchoFile();
         echo.sumCountPackage = sumCountPackage;
         echo.countPackage = 1;

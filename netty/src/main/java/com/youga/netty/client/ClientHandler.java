@@ -3,11 +3,14 @@ package com.youga.netty.client;
 
 import android.util.Log;
 
-import cc.lison.pojo.EchoMessage;
+import java.util.Arrays;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
+import netty.echo.EchoCommon.Target;
+import netty.echo.EchoMessage;
 
 /**
  * Created by Youga on 2017/6/15.
@@ -29,11 +32,11 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof EchoMessage) {
-            EchoMessage em = (EchoMessage) msg;
-            Message message = new Message(Message.REMOTE, new String(em.getBytes()));
+            EchoMessage message = (EchoMessage) msg;
             mClient.mCallback.message(message);
         } else if (msg instanceof ByteBuf) {
             ByteBuf byteBuf = (ByteBuf) msg;
+            Log.e(TAG, Arrays.toString(byteBuf.array()));
             if (byteBuf.getByte(4) == PING_MSG) {
                 sendPongMsg(ctx);
             } else if (byteBuf.getByte(4) == PONG_MSG) {
@@ -58,23 +61,25 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
         byteBuf.skipBytes(5);
         byteBuf.readBytes(data);
 
-        Message message = new Message(Message.REMOTE, new String(data));
+        EchoMessage message = EchoMessage.buildMessage(data, Target.SERVER);
         mClient.mCallback.message(message);
-        Log.d(TAG, message.message);
+        Log.d(TAG, message.getMessage());
     }
 
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        Message message = new Message(Message.SYSTEM, "通道 活动");
+        EchoMessage message = EchoMessage.buildMessage("通道 活动", Target.SYSTEM);
         mClient.mCallback.message(message);
+        Log.d(TAG, message.getMessage());
         super.channelActive(ctx);
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        Message message = new Message(Message.SYSTEM, "通道 迟顿");
+        EchoMessage message = EchoMessage.buildMessage("通道 迟顿", Target.SYSTEM);
         mClient.mCallback.message(message);
+        Log.d(TAG, message.getMessage());
         mClient.doConnect();
         super.channelInactive(ctx);
     }
@@ -92,7 +97,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
                     handleWriterIdle(ctx);
                     break;
                 case ALL_IDLE:
-                    handleAllIdle(ctx);
+                    sendPingMsg(ctx);
                     break;
                 default:
                     break;
@@ -100,22 +105,21 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
         }
     }
 
-    protected void handleReaderIdle(ChannelHandlerContext ctx) {
+    private void handleReaderIdle(ChannelHandlerContext ctx) {
         Log.e(TAG, "---READER_IDLE---");
     }
 
-    protected void handleWriterIdle(ChannelHandlerContext ctx) {
+    private void handleWriterIdle(ChannelHandlerContext ctx) {
         Log.e(TAG, "---WRITER_IDLE---");
     }
 
-    protected void handleAllIdle(ChannelHandlerContext ctx) {
-        Log.e(TAG, "---ALL_IDLE---");
+    private void sendPingMsg(ChannelHandlerContext ctx) {
         ByteBuf buf = ctx.alloc().buffer(5);
         buf.writeInt(5);
         buf.writeByte(PING_MSG);
         buf.retain();
         ctx.writeAndFlush(buf);
         heartbeatCount++;
-        Log.d(TAG, " sent ping msg to " + ctx.channel().remoteAddress() + ", count: " + heartbeatCount);
+        Log.w(TAG, " sent ping msg to " + ctx.channel().remoteAddress() + ", count: " + heartbeatCount);
     }
 }

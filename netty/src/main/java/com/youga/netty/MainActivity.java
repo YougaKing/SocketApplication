@@ -22,9 +22,12 @@ import com.youga.netty.client.Client;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.List;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import netty.echo.EchoMessage;
+
 
 public class MainActivity extends Activity implements Client.ClientCallback {
 
@@ -53,6 +56,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
             public void onClick(View v) {
                 if (!mEtMsg.getText().toString().trim().isEmpty()) {
                     mClient.sendMessage(mEtMsg.getText().toString());
+                    mEtMsg.setText("");
                 }
             }
         });
@@ -101,7 +105,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
     }
 
     @Override
-    public void message(final Message message) {
+    public void message(final EchoMessage message) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -112,7 +116,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
 
     class InnerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-        List<Message> mMessageList = new ArrayList<>();
+        List<EchoMessage> mMessageList = new ArrayList<>();
 
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
@@ -120,7 +124,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
             return new ViewHolder(view);
         }
 
-        public void addMessage(Message message) {
+        public void addMessage(EchoMessage message) {
             mMessageList.add(message);
             notifyItemInserted(mMessageList.indexOf(message));
         }
@@ -155,26 +159,26 @@ public class MainActivity extends Activity implements Client.ClientCallback {
                 }
                 itemView.setLayoutParams(layoutParams);
 
-                Message message = mMessageList.get(position);
+                EchoMessage message = mMessageList.get(position);
                 FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) mTextView.getLayoutParams();
                 switch (message.target) {
-                    case Message.SYSTEM:
+                    case SYSTEM:
                         params.gravity = Gravity.CENTER;
                         mTextView.setTextColor(Color.RED);
                         mTextView.requestLayout();
                         break;
-                    case Message.LOCAL:
+                    case CLIENT:
                         params.gravity = Gravity.RIGHT;
                         mTextView.setTextColor(Color.LTGRAY);
                         mTextView.requestLayout();
                         break;
-                    case Message.REMOTE:
+                    case SERVER:
                         params.gravity = Gravity.LEFT;
                         mTextView.setTextColor(Color.DKGRAY);
                         mTextView.requestLayout();
                         break;
                 }
-                mTextView.setText(message.message);
+                mTextView.setText(message.getMessage());
             }
         }
     }

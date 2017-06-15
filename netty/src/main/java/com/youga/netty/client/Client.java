@@ -1,11 +1,8 @@
 package com.youga.netty.client;
 
-import android.os.Build;
 import android.util.Log;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.Bootstrap;
@@ -14,8 +11,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import netty.echo.EchoCommon;
-import netty.echo.EchoFile;
+import netty.echo.EchoCommon.Target;
 import netty.echo.EchoMessage;
 
 /**
@@ -24,7 +20,7 @@ import netty.echo.EchoMessage;
 
 public class Client {
     public static final String TAG = Client.class.getSimpleName();
-    String host = "192.168.0.112";
+    String host = "192.168.1.101";
     int port = 8080;
 
     private NioEventLoopGroup mWorkGroup = new NioEventLoopGroup(4);
@@ -63,14 +59,14 @@ public class Client {
                     mChannel = futureListener.channel();
 
 
-                    EchoMessage message = EchoMessage.buildMessage("连接服务器成功", EchoCommon.SYSTEM);
+                    EchoMessage message = EchoMessage.buildMessage("连接服务器成功", Target.SYSTEM);
                     mCallback.message(message);
                     Log.d(TAG, message.getMessage());
 
                     sendMessage("Hello,I am Nexus5x");
                 } else {
 
-                    EchoMessage message = EchoMessage.buildMessage("连接服务器失败,5秒后重试", EchoCommon.SYSTEM);
+                    EchoMessage message = EchoMessage.buildMessage("连接服务器失败,5秒后重试", Target.SYSTEM);
                     mCallback.message(message);
                     Log.d(TAG, message.getMessage());
 
@@ -88,7 +84,7 @@ public class Client {
     public void sendMessage(String string) {
         if (mChannel == null) return;
 
-        EchoMessage message = EchoMessage.buildMessage(string, EchoCommon.CLIENT);
+        EchoMessage message = EchoMessage.buildMessage(string, Target.CLIENT);
         mCallback.message(message);
         mChannel.writeAndFlush(message);
 
