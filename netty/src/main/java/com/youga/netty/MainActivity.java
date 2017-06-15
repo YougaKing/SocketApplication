@@ -6,7 +6,6 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.v4.view.ViewPager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -23,7 +22,6 @@ import com.youga.netty.client.Client;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.List;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -167,12 +165,12 @@ public class MainActivity extends Activity implements Client.ClientCallback {
                         break;
                     case Message.LOCAL:
                         params.gravity = Gravity.RIGHT;
-                        mTextView.setTextColor(Color.GREEN);
+                        mTextView.setTextColor(Color.LTGRAY);
                         mTextView.requestLayout();
                         break;
                     case Message.REMOTE:
                         params.gravity = Gravity.LEFT;
-                        mTextView.setTextColor(Color.YELLOW);
+                        mTextView.setTextColor(Color.DKGRAY);
                         mTextView.requestLayout();
                         break;
                 }
