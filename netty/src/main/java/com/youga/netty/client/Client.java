@@ -2,6 +2,7 @@ package com.youga.netty.client;
 
 import android.util.Log;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
 
@@ -11,7 +12,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import netty.echo.EchoCommon;
 import netty.echo.EchoCommon.Target;
+import netty.echo.EchoFile;
 import netty.echo.EchoMessage;
 
 /**
@@ -19,10 +22,11 @@ import netty.echo.EchoMessage;
  */
 
 public class Client {
-    public static final String TAG = Client.class.getSimpleName();
-    String host = "192.168.1.101";
-    int port = 8080;
-
+    static final String TAG = Client.class.getSimpleName();
+    static final String HOST = "192.168.0.112";
+    static final int PORT = 8080;
+    // 隔N秒后重连
+    private static final int RE_CONN_WAIT_SECONDS = 5;
     private NioEventLoopGroup mWorkGroup = new NioEventLoopGroup(4);
     Bootstrap mBootstrap;
     Channel mChannel;
@@ -51,7 +55,7 @@ public class Client {
             return;
         }
 
-        ChannelFuture future = mBootstrap.connect(host, port);
+        ChannelFuture future = mBootstrap.connect(HOST, PORT);
 
         future.addListener(new ChannelFutureListener() {
             public void operationComplete(ChannelFuture futureListener) throws Exception {
@@ -75,7 +79,7 @@ public class Client {
                         public void run() {
                             doConnect();
                         }
-                    }, 5, TimeUnit.SECONDS);
+                    }, RE_CONN_WAIT_SECONDS, TimeUnit.SECONDS);
                 }
             }
         });
@@ -92,54 +96,23 @@ public class Client {
     }
 
 
-    public void sendPic(InputStream reader) {
+    public void sendPic(InputStream reader, String fileName, String filePath) {
         if (mChannel == null) return;
+        try {
+            byte[] bytes = new byte[reader.available()];
+            reader.read(bytes);
+            reader.close();
+            EchoFile msgFile = EchoFile.buildFile(bytes, fileName, filePath, Target.CLIENT);
+            mCallback.message(msgFile);
+            mChannel.writeAndFlush(msgFile);
 
-//        int dataLength = 1024;
-//        int sumCountPackage;
-//
-//        try {
-//            byte[] bytes = new byte[reader.available()];
-//            reader.read(bytes);
-//            reader.close();
-//
-//            if ((bytes.length % dataLength == 0))
-//                sumCountPackage = bytes.length / dataLength;
-//            else
-//                sumCountPackage = (bytes.length / dataLength) + 1;
-//
-//            Log.i("TAG", "文件总长度:" + bytes.length);
-//            EchoFile msgFile = new EchoFile();
-//            msgFile.setSumCountPackage(sumCountPackage);
-//            msgFile.setCountPackage(1);
-//
-//            msgFile.setBytes(bytes);
-//            msgFile.setFile_name(Build.MANUFACTURER + "-" + UUID.randomUUID() + ".jpg");
-//            mChannel.writeAndFlush(msgFile);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//
-//        try {
-//
-//            byte[] bytes = new byte[reader.available()];
-//            reader.read(bytes);
-//            reader.close();
-//
-//            mChannel.writeAndFlush("fileLength:" + bytes.length + "\r\n");
-//            mChannel.flush();
-//            mChannel.read();
-//
-//            mChannel.writeAndFlush(bytes);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        } finally {
-//            mChannel.flush();
-//            mChannel.read();
-//        }
+            Log.i(TAG, fileName + "-->文件总长度:" + bytes.length);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public interface ClientCallback {
-        void message(EchoMessage message);
+        void message(EchoCommon message);
     }
 }

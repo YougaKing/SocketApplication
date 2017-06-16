@@ -3,9 +3,6 @@ package com.youga.netty.client;
 
 import android.util.Log;
 
-import java.util.Arrays;
-
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -19,10 +16,13 @@ import netty.echo.EchoMessage;
 public class ClientHandler extends SimpleChannelInboundHandler<Object> {
 
     protected final String TAG = getClass().getSimpleName();
-    private static final byte PING_MSG = 1;
-    private static final byte PONG_MSG = 2;
+    // 定义客户端没有收到服务端的pong消息的最大次数
+    private static final int MAX_UN_REC_PONG_TIMES = 3;
+    // 多长时间未请求后，发送心跳
+    static final int WRITE_WAIT_SECONDS = 5;
+    // 客户端连续N次没有收到服务端的pong消息  计数器
+    private int mUnRecPongTimes = 0;
     Client mClient;
-    private int heartbeatCount;
 
     public ClientHandler(Client client) {
         mClient = client;
@@ -33,39 +33,17 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof EchoMessage) {
             EchoMessage message = (EchoMessage) msg;
-            mClient.mCallback.message(message);
-        } else if (msg instanceof ByteBuf) {
-            ByteBuf byteBuf = (ByteBuf) msg;
-            Log.e(TAG, Arrays.toString(byteBuf.array()));
-            if (byteBuf.getByte(4) == PING_MSG) {
-                sendPongMsg(ctx);
-            } else if (byteBuf.getByte(4) == PONG_MSG) {
-                Log.d(TAG, " get pong msg from " + ctx.channel().remoteAddress());
+            if (message.target == Target.HEART_BEAT) {
+                // 计数器清零
+                mUnRecPongTimes = 0;
             } else {
-                handleData(byteBuf);
+                mClient.mCallback.message(message);
             }
+            Log.d(TAG, message.target.getDescribe() + ":" + message.getMessage());
+        } else {
+            Log.i(TAG, msg.toString());
         }
     }
-
-    private void sendPongMsg(ChannelHandlerContext context) {
-        ByteBuf buf = context.alloc().buffer(5);
-        buf.writeInt(5);
-        buf.writeByte(PONG_MSG);
-        context.channel().writeAndFlush(buf);
-        heartbeatCount++;
-        Log.d(TAG, " sent pong msg to " + context.channel().remoteAddress() + ", count: " + heartbeatCount);
-    }
-
-    protected void handleData(ByteBuf byteBuf) {
-        byte[] data = new byte[byteBuf.readableBytes() - 5];
-        byteBuf.skipBytes(5);
-        byteBuf.readBytes(data);
-
-        EchoMessage message = EchoMessage.buildMessage(data, Target.SERVER);
-        mClient.mCallback.message(message);
-        Log.d(TAG, message.getMessage());
-    }
-
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -86,7 +64,6 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-        // IdleStateHandler 所产生的 IdleStateEvent 的处理逻辑.
         if (evt instanceof IdleStateEvent) {
             IdleStateEvent e = (IdleStateEvent) evt;
             switch (e.state()) {
@@ -97,7 +74,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
                     handleWriterIdle(ctx);
                     break;
                 case ALL_IDLE:
-                    sendPingMsg(ctx);
+                    handleAllIdle(ctx);
                     break;
                 default:
                     break;
@@ -110,16 +87,17 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     private void handleWriterIdle(ChannelHandlerContext ctx) {
-        Log.e(TAG, "---WRITER_IDLE---");
+        if (mUnRecPongTimes < MAX_UN_REC_PONG_TIMES) {
+            EchoMessage message = EchoMessage.buildMessage("HEART_BEAT", Target.HEART_BEAT);
+            ctx.writeAndFlush(message);
+            mUnRecPongTimes++;
+        } else {
+            ctx.channel().close();
+        }
+        Log.e(TAG, "---WRITER_IDLE---mUnRecPongTimes:" + mUnRecPongTimes);
     }
 
-    private void sendPingMsg(ChannelHandlerContext ctx) {
-        ByteBuf buf = ctx.alloc().buffer(5);
-        buf.writeInt(5);
-        buf.writeByte(PING_MSG);
-        buf.retain();
-        ctx.writeAndFlush(buf);
-        heartbeatCount++;
-        Log.w(TAG, " sent ping msg to " + ctx.channel().remoteAddress() + ", count: " + heartbeatCount);
+    private void handleAllIdle(ChannelHandlerContext ctx) {
+        Log.e(TAG, "---ALL_IDLE---");
     }
 }

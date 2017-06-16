@@ -8,6 +8,7 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 
+
 /**
  * Created by Lison on 5/6/2016.
  */
@@ -22,7 +23,7 @@ public class InitializerPipeline extends ChannelInitializer<SocketChannel> {
     @Override
     protected void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline p = ch.pipeline();
-        p.addLast(new IdleStateHandler(0, 0, 5));
+        p.addLast(new IdleStateHandler(0, ClientHandler.WRITE_WAIT_SECONDS, 0));
         p.addLast(new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.weakCachingConcurrentResolver(null)));
         p.addLast(new ObjectEncoder());
         p.addLast(new ClientHandler(mClient));

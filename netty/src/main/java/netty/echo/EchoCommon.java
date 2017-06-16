@@ -1,11 +1,6 @@
 package netty.echo;
 
-import android.support.annotation.StringDef;
-
 import java.io.Serializable;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-
 /**
  * Created by Youga on 2017/6/15.
  */

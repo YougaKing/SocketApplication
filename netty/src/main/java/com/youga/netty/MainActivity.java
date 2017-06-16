@@ -2,12 +2,21 @@ package com.youga.netty;
 
 import android.app.Activity;
 import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.Intent;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.DocumentsContract;
+import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -15,10 +24,12 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.youga.netty.client.Client;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -26,6 +37,8 @@ import java.util.List;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import netty.echo.EchoCommon;
+import netty.echo.EchoFile;
 import netty.echo.EchoMessage;
 
 
@@ -90,12 +103,13 @@ public class MainActivity extends Activity implements Client.ClientCallback {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (resultCode == RESULT_OK) {
             Uri uri = data.getData();
-            Log.e("uri", uri.toString());
+
+            Log.d(TAG, getFilePath(uri) + "-->" + getFileName(uri));
 
             ContentResolver resolver = getContentResolver();
             try {
                 InputStream reader = resolver.openInputStream(uri);
-                mClient.sendPic(reader);
+                mClient.sendPic(reader, getFileName(uri), getFilePath(uri));
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             }
@@ -105,7 +119,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
     }
 
     @Override
-    public void message(final EchoMessage message) {
+    public void message(final EchoCommon message) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -114,9 +128,136 @@ public class MainActivity extends Activity implements Client.ClientCallback {
         });
     }
 
+    public String getFileName(Uri uri) {
+        String result = null;
+        if (uri.getScheme().equals("content")) {
+            Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+            try {
+                if (cursor != null && cursor.moveToFirst()) {
+                    result = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+                }
+            } finally {
+                assert cursor != null;
+                cursor.close();
+            }
+        }
+        if (result == null) {
+            result = uri.getPath();
+            int cut = result.lastIndexOf('/');
+            if (cut != -1) {
+                result = result.substring(cut + 1);
+            }
+        }
+        return result;
+    }
+
+    public String getFilePath(Uri uri) {
+        String result = null;
+        if (DocumentsContract.isDocumentUri(this, uri)) {
+            if (isExternalStorageDocument(uri)) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
+
+                if ("primary".equalsIgnoreCase(type)) {
+                    return Environment.getExternalStorageDirectory() + "/" + split[1];
+                }
+            }
+            // DownloadsProvider
+            else if (isDownloadsDocument(uri)) {
+
+                final String id = DocumentsContract.getDocumentId(uri);
+                final Uri contentUri = ContentUris.withAppendedId(
+                        Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+
+                return getDataColumn(contentUri, null, null);
+            }
+            // MediaProvider
+            else if (isMediaDocument(uri)) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
+
+                Uri contentUri = null;
+                if ("image".equals(type)) {
+                    contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                } else if ("video".equals(type)) {
+                    contentUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                } else if ("audio".equals(type)) {
+                    contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+                }
+
+                final String selection = "_id=?";
+                final String[] selectionArgs = new String[]{split[1]};
+
+                return getDataColumn(contentUri, selection, selectionArgs);
+            }
+        } else if (uri.getScheme().equals("content")) {
+            String[] prof = {MediaStore.Audio.Media.DATA};
+            Cursor cursor = getContentResolver().query(uri, prof, null, null, null);
+            try {
+                if (cursor != null && cursor.moveToFirst()) {
+                    result = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA));
+                }
+            } finally {
+                assert cursor != null;
+                cursor.close();
+            }
+        }
+        if (result == null) {
+            result = uri.getPath();
+        }
+        return result;
+    }
+
+    public String getDataColumn(Uri uri, String selection,
+                                String[] selectionArgs) {
+
+        Cursor cursor = null;
+        final String column = "_data";
+        final String[] projection = {column};
+
+        try {
+            cursor = getContentResolver().query(uri, projection, selection, selectionArgs,
+                    null);
+            if (cursor != null && cursor.moveToFirst()) {
+                final int column_index = cursor.getColumnIndexOrThrow(column);
+                return cursor.getString(column_index);
+            }
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
+        return null;
+    }
+
+    /**
+     * @param uri The Uri to check.
+     * @return Whether the Uri authority is ExternalStorageProvider.
+     */
+    public static boolean isExternalStorageDocument(Uri uri) {
+        return "com.android.externalstorage.documents".equals(uri.getAuthority());
+    }
+
+    /**
+     * @param uri The Uri to check.
+     * @return Whether the Uri authority is DownloadsProvider.
+     */
+    public static boolean isDownloadsDocument(Uri uri) {
+        return "com.android.providers.downloads.documents".equals(uri.getAuthority());
+    }
+
+    /**
+     * @param uri The Uri to check.
+     * @return Whether the Uri authority is MediaProvider.
+     */
+    public static boolean isMediaDocument(Uri uri) {
+        return "com.android.providers.media.documents".equals(uri.getAuthority());
+    }
+
     class InnerAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-        List<EchoMessage> mMessageList = new ArrayList<>();
+        List<EchoCommon> mMessageList = new ArrayList<>();
 
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
@@ -124,7 +265,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
             return new ViewHolder(view);
         }
 
-        public void addMessage(EchoMessage message) {
+        public void addMessage(EchoCommon message) {
             mMessageList.add(message);
             notifyItemInserted(mMessageList.indexOf(message));
         }
@@ -143,6 +284,8 @@ public class MainActivity extends Activity implements Client.ClientCallback {
         public class ViewHolder extends RecyclerView.ViewHolder {
             @BindView(R.id.textView)
             TextView mTextView;
+            @BindView(R.id.imageView)
+            ImageView mImageView;
 
             ViewHolder(View view) {
                 super(view);
@@ -159,8 +302,9 @@ public class MainActivity extends Activity implements Client.ClientCallback {
                 }
                 itemView.setLayoutParams(layoutParams);
 
-                EchoMessage message = mMessageList.get(position);
+                EchoCommon message = mMessageList.get(position);
                 FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) mTextView.getLayoutParams();
+                FrameLayout.LayoutParams ivParams = (FrameLayout.LayoutParams) mImageView.getLayoutParams();
                 switch (message.target) {
                     case SYSTEM:
                         params.gravity = Gravity.CENTER;
@@ -171,14 +315,35 @@ public class MainActivity extends Activity implements Client.ClientCallback {
                         params.gravity = Gravity.RIGHT;
                         mTextView.setTextColor(Color.LTGRAY);
                         mTextView.requestLayout();
+                        ivParams.gravity = Gravity.RIGHT;
+                        mImageView.requestLayout();
                         break;
                     case SERVER:
                         params.gravity = Gravity.LEFT;
                         mTextView.setTextColor(Color.DKGRAY);
                         mTextView.requestLayout();
+                        ivParams.gravity = Gravity.LEFT;
+                        mImageView.requestLayout();
                         break;
                 }
-                mTextView.setText(message.getMessage());
+                if (message instanceof EchoMessage) {
+                    mTextView.setVisibility(View.VISIBLE);
+                    mImageView.setVisibility(View.GONE);
+                    mTextView.setText(((EchoMessage) message).getMessage());
+                } else {
+                    mTextView.setVisibility(View.GONE);
+                    mImageView.setVisibility(View.VISIBLE);
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inJustDecodeBounds = true;
+                    BitmapFactory.decodeFile(((EchoFile) message).filePath, options);
+                    DisplayMetrics metrics = getResources().getDisplayMetrics();
+                    if (options.outWidth > metrics.widthPixels / 2f) {
+                        options.inDensity = (int) (options.outWidth / metrics.widthPixels / 2f);
+                    }
+                    options.inJustDecodeBounds = false;
+                    Bitmap bitmap = BitmapFactory.decodeFile(((EchoFile) message).filePath, options);
+                    mImageView.setImageBitmap(bitmap);
+                }
             }
         }
     }
