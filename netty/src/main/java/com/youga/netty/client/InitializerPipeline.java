@@ -24,8 +24,8 @@ public class InitializerPipeline extends ChannelInitializer<SocketChannel> {
     protected void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline p = ch.pipeline();
         p.addLast(new IdleStateHandler(0, ClientHandler.WRITE_WAIT_SECONDS, 0));
-        p.addLast(new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.weakCachingConcurrentResolver(null)));
-        p.addLast(new ObjectEncoder());
+//        p.addLast(new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.weakCachingConcurrentResolver(null)));
+//        p.addLast(new ObjectEncoder());
         p.addLast(new ClientHandler(mClient));
     }
 }

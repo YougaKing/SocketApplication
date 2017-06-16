@@ -4,6 +4,8 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.Bootstrap;
@@ -23,7 +25,7 @@ import netty.echo.EchoMessage;
 
 public class Client {
     static final String TAG = Client.class.getSimpleName();
-    static final String HOST = "192.168.0.112";
+    static final String HOST = "121.42.13.161";
     static final int PORT = 8080;
     // 隔N秒后重连
     private static final int RE_CONN_WAIT_SECONDS = 5;
@@ -67,7 +69,8 @@ public class Client {
                     mCallback.message(message);
                     Log.d(TAG, message.getMessage());
 
-                    sendMessage("Hello,I am Nexus5x");
+                    authWrite();
+//                    sendMessage("Hello,I am Nexus5x");
                 } else {
 
                     EchoMessage message = EchoMessage.buildMessage("连接服务器失败,5秒后重试", Target.SYSTEM);
@@ -85,14 +88,40 @@ public class Client {
         });
     }
 
+
+    public synchronized Boolean authWrite() throws IOException {
+        String msg = "12998" + "," + "game";
+
+        int packLength = msg.length() + 16;
+        byte[] message = new byte[4 + 2 + 2 + 4 + 4];
+
+        // package length
+        int offset = BruteForceCoding.encodeIntBigEndian(message, packLength, 0, 4 * BruteForceCoding.BSIZE);
+        // header lenght
+        offset = BruteForceCoding.encodeIntBigEndian(message, 16, offset, 2 * BruteForceCoding.BSIZE);
+        // ver
+        offset = BruteForceCoding.encodeIntBigEndian(message, 1, offset, 2 * BruteForceCoding.BSIZE);
+        // operation
+        offset = BruteForceCoding.encodeIntBigEndian(message, 7, offset, 4 * BruteForceCoding.BSIZE);
+        // jsonp callback
+        offset = BruteForceCoding.encodeIntBigEndian(message, 1, offset, 4 * BruteForceCoding.BSIZE);
+
+        byte[] bytes = BruteForceCoding.add(message, msg.getBytes());
+
+        Log.d(TAG, new String(bytes, Charset.defaultCharset()) + "-->" + Arrays.toString(bytes));
+
+        mChannel.writeAndFlush(bytes);
+        return true;
+    }
+
     public void sendMessage(String string) {
         if (mChannel == null) return;
 
-        EchoMessage message = EchoMessage.buildMessage(string, Target.CLIENT);
-        mCallback.message(message);
-        mChannel.writeAndFlush(message);
-
-        Log.d(TAG, message.getMessage());
+//        EchoMessage message = EchoMessage.buildMessage(string, Target.CLIENT);
+//        mCallback.message(message);
+//        mChannel.writeAndFlush(message);
+//
+//        Log.d(TAG, message.getMessage());
     }
 
 

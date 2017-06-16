@@ -9,7 +9,12 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Observable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -26,6 +31,7 @@ public abstract class AbstractBlockingClient extends Observable implements Runna
 
     private static final String TAG = AbstractBlockingClient.class.getSimpleName();
 
+
     private enum State {
         STOPPED, STOPPING, RUNNING
     }
@@ -36,7 +42,7 @@ public abstract class AbstractBlockingClient extends Observable implements Runna
     protected final InetAddress server;
     protected final int port;
     private final int defaultBufferSize;
-    private int defaultHeartBeatTimeOut = 20000;
+    private int defaultHeartBeatTimeOut = 5;
     private int defaultSocketTimeOut = 3 * 60 * 1000;
     protected final Integer uid;
     protected final String game;
@@ -135,20 +141,18 @@ public abstract class AbstractBlockingClient extends Observable implements Runna
             authWrite();
 
             while (state.get() == State.RUNNING) {
-                Log.d(TAG, "readUTF():" + in.get().readUTF());
-
                 byte[] inBuffer = new byte[defaultBufferSize];
                 int readPoint = in.get().read(inBuffer);
                 if (readPoint != -1) {
                     byte[] result = BruteForceCoding.tail(inBuffer, inBuffer.length - 16);
 
                     Long operation = BruteForceCoding.decodeIntBigEndian(inBuffer, 8, 4);
-                    if (3 == operation) {
+                    if (3 == operation) {//服务端心跳答复
                         heartBeatReceived();
-                    } else if (8 == operation) {
+                    } else if (8 == operation) {//auth认证返回
                         authSuccess();
                         heartBeat();
-                    } else if (5 == operation) {
+                    } else if (5 == operation) {//下行消息
                         Long packageLength = BruteForceCoding.decodeIntBigEndian(inBuffer, 0, 4);
                         Long headLength = BruteForceCoding.decodeIntBigEndian(inBuffer, 4, 2);
                         Long version = BruteForceCoding.decodeIntBigEndian(inBuffer, 6, 2);
@@ -199,6 +203,13 @@ public abstract class AbstractBlockingClient extends Observable implements Runna
     }
 
     /**
+     * 参数名	必选	类型	说明
+     * package length	true	int32 bigendian	包长度
+     * header Length	true	int16 bigendian	包头长度
+     * ver	true	int16 bigendian	协议版本
+     * operation	true	int32 bigendian	协议指令
+     * seq	true	int32 bigendian	序列号
+     * body	false	binary	$(package lenth) - $(header length)
      * Send the given message to the server.
      *
      * @return true if the message was sent to the server.
@@ -221,15 +232,84 @@ public abstract class AbstractBlockingClient extends Observable implements Runna
         // jsonp callback
         offset = BruteForceCoding.encodeIntBigEndian(message, 1, offset, 4 * BruteForceCoding.BSIZE);
 
-        out.get().write(BruteForceCoding.add(message, msg.getBytes()));
+        byte[] bytes = BruteForceCoding.add(message, msg.getBytes());
+
+        Log.d(TAG, Arrays.toString(bytes));
+
+        out.get().write(bytes);
         out.get().flush();
 
         return true;
 
     }
 
+    private ExecutorService mMessageExecutor = Executors.newCachedThreadPool();
+
+    public void sendMessage(final String game) {
+        mMessageExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                String msg = uid + "," + getGameCode(game);
+
+                int packLength = msg.length() + 16;
+                byte[] message = new byte[4 + 2 + 2 + 4 + 4];
+
+                // package length
+                int offset = BruteForceCoding.encodeIntBigEndian(message, packLength, 0, 4 * BruteForceCoding.BSIZE);
+                // header lenght
+                offset = BruteForceCoding.encodeIntBigEndian(message, 16, offset, 2 * BruteForceCoding.BSIZE);
+                // ver
+                offset = BruteForceCoding.encodeIntBigEndian(message, 1, offset, 2 * BruteForceCoding.BSIZE);
+                // operation
+                offset = BruteForceCoding.encodeIntBigEndian(message, 254, offset, 4 * BruteForceCoding.BSIZE);
+                // jsonp callback
+                offset = BruteForceCoding.encodeIntBigEndian(message, 1, offset, 4 * BruteForceCoding.BSIZE);
+
+                try {
+                    out.get().write(BruteForceCoding.add(message, msg.getBytes()));
+                    out.get().flush();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+    }
+
+    /****
+     * get game code
+     */
+    private int getGameCode(String game) {
+        int sum = 0;
+        byte[] array = game.getBytes();
+        for (int i = 0; i < array.length; i++) {
+            sum += array[i];
+        }
+        return sum;
+    }
+
+
+    private ScheduledExecutorService mHeartBeatExecutor = Executors.newScheduledThreadPool(2);
+
+    /*****
+     * heart beat Thread
+     */
+    private void heartBeat() {
+        mHeartBeatExecutor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    heartBeatWrite();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }, defaultHeartBeatTimeOut, TimeUnit.SECONDS);
+    }
+
+
     /**
      * Send the given message to the server.
+     * 客户端请求心跳
      *
      * @return true if the message was sent to the server.
      * @throws IOException
@@ -255,27 +335,6 @@ public abstract class AbstractBlockingClient extends Observable implements Runna
         out.get().flush();
 
         return true;
-
-    }
-
-    /****
-     * get game code
-     */
-    private int getGameCode(String game) {
-        int sum = 0;
-        byte[] array = game.getBytes();
-        for (int i = 0; i < array.length; i++) {
-            sum += array[i];
-        }
-        return sum;
-    }
-
-    /*****
-     * heart beat Thread
-     */
-    private void heartBeat() {
-        Thread hbThread = new Thread(new HeartbeatTask());
-        hbThread.start();
     }
 
     /**
@@ -313,27 +372,4 @@ public abstract class AbstractBlockingClient extends Observable implements Runna
      * Callback method for when the client disconnects from the server.
      */
     protected abstract void disconnected();
-
-    private class HeartbeatTask implements Runnable {
-
-        @Override
-        public void run() {
-            // TODO Auto-generated method stub
-            // !Thread.currentThread().isInterrupted()
-            while (true) {
-                try {
-                    Thread.sleep(defaultHeartBeatTimeOut);
-                } catch (InterruptedException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-                try {
-                    heartBeatWrite();
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
 }

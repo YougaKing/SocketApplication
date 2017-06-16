@@ -41,7 +41,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
             }
             Log.d(TAG, message.target.getDescribe() + ":" + message.getMessage());
         } else {
-            Log.i(TAG, msg.toString());
+            Log.i(TAG, "channelRead0" + msg.toString());
         }
     }
 
@@ -58,7 +58,7 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
         EchoMessage message = EchoMessage.buildMessage("通道 迟顿", Target.SYSTEM);
         mClient.mCallback.message(message);
         Log.d(TAG, message.getMessage());
-        mClient.doConnect();
+//        mClient.doConnect();
         super.channelInactive(ctx);
     }
 
@@ -87,14 +87,14 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     private void handleWriterIdle(ChannelHandlerContext ctx) {
-        if (mUnRecPongTimes < MAX_UN_REC_PONG_TIMES) {
-            EchoMessage message = EchoMessage.buildMessage("HEART_BEAT", Target.HEART_BEAT);
-            ctx.writeAndFlush(message);
-            mUnRecPongTimes++;
-        } else {
-            ctx.channel().close();
-        }
-        Log.e(TAG, "---WRITER_IDLE---mUnRecPongTimes:" + mUnRecPongTimes);
+//        if (mUnRecPongTimes < MAX_UN_REC_PONG_TIMES) {
+//            EchoMessage message = EchoMessage.buildMessage("HEART_BEAT", Target.HEART_BEAT);
+//            ctx.writeAndFlush(message);
+//            mUnRecPongTimes++;
+//        } else {
+//            ctx.channel().close();
+//        }
+//        Log.e(TAG, "---WRITER_IDLE---mUnRecPongTimes:" + mUnRecPongTimes);
     }
 
     private void handleAllIdle(ChannelHandlerContext ctx) {

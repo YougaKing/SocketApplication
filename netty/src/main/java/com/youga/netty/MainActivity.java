@@ -3,6 +3,7 @@ package com.youga.netty;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentUris;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -21,6 +22,7 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -70,6 +72,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
                 if (!mEtMsg.getText().toString().trim().isEmpty()) {
                     mClient.sendMessage(mEtMsg.getText().toString());
                     mEtMsg.setText("");
+                    hideKeyboard(mBtnSend);
                 }
             }
         });
@@ -98,6 +101,12 @@ public class MainActivity extends Activity implements Client.ClientCallback {
         }.start();
     }
 
+    protected void hideKeyboard(View v) {
+        InputMethodManager imm = (InputMethodManager) v.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm.isActive()) {
+            imm.hideSoftInputFromWindow(v.getApplicationWindowToken(), 0);
+        }
+    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -124,6 +133,7 @@ public class MainActivity extends Activity implements Client.ClientCallback {
             @Override
             public void run() {
                 mAdapter.addMessage(message);
+                mRecyclerView.scrollToPosition(mAdapter.getItemCount() - 1);
             }
         });
     }

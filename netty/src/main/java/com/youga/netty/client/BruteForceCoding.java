@@ -1,6 +1,4 @@
-package com.youga.goim;
-
-import android.util.Log;
+package com.youga.netty.client;
 
 import java.util.Arrays;
 
