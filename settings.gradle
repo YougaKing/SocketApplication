@@ -1,1 +1,1 @@
-include ':app', ':netty', ':goim'
+include ':app', ':netty', ':goim', ':websocket'

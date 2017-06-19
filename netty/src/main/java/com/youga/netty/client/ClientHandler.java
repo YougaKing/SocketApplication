@@ -31,6 +31,9 @@ public class ClientHandler extends SimpleChannelInboundHandler<Object> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+
+        Log.i(TAG, "channelRead0" + msg.toString());
+
         if (msg instanceof EchoMessage) {
             EchoMessage message = (EchoMessage) msg;
             if (message.target == Target.HEART_BEAT) {
