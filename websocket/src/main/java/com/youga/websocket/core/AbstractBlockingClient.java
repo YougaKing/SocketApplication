@@ -140,6 +140,7 @@ public abstract class AbstractBlockingClient extends Observable {
     }
 
     public boolean stop() {
+        mOkHttpClient.dispatcher().executorService().shutdown();
         if (mState.compareAndSet(State.RUNNING, State.STOPPING)) {
             mWebSocket.cancel();
             mState.set(State.STOPPED);
